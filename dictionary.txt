@@ -1,0 +1,24 @@
+# FlowLocal personal dictionary. Edits take effect on your next dictation —
+# no reload needed.
+#
+# Two kinds of line:
+#
+#   Term                  Biases the recogniser toward this word, and forces
+#                         this exact spelling/casing in the output.
+#
+#   heard text => Term    A literal rewrite. Use this for invented words that
+#                         are HOMOPHONES of real ones — biasing alone cannot
+#                         fix those, because they sound identical.
+
+OpenRappter
+RappterStore
+Rappter
+Kody Wildflower
+Claude Code
+
+# Homophone rewrites. Keep the left side multi-word where you can: a bare
+# "Raptor => Rappter" would also corrupt genuine uses of the real word.
+Open Raptor => OpenRappter
+OpenRaptor => OpenRappter
+Raptor Store => RappterStore
+RaptorStore => RappterStore
