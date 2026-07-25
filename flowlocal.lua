@@ -34,8 +34,12 @@ local CONFIG = {
   pasteDelay          = 0.05,       -- seconds between setting the clipboard and Cmd-V
   clipboardRestoreDelay = 0.25,     -- seconds after Cmd-V before the old clipboard is restored
 
-  -- Post-processing
-  fillers = { "um", "uh", "uhm", "erm", "hmm", "mhm", "you know", "i mean", "like, like" },
+  -- Post-processing.
+  -- Only true disfluencies belong here. "i mean" and "like, like" were tried and
+  -- removed: they are ordinary content, and stripping them silently destroys
+  -- meaning ("you know what I mean" became "What.", "i mean it sincerely" became
+  -- "It sincerely."). An entry must never be a phrase you might actually say.
+  fillers = { "um", "uh", "uhm", "erm", "hmm", "mhm", "you know" },
 
   -- Frontmost apps that get RAW text: no sentence-casing, no terminal punctuation.
   -- Matched against the app name and the bundle ID.
@@ -350,8 +354,6 @@ local function postProcess(raw, raw_mode, dict)
   return s
 end
 
-M._postProcess = postProcess   -- exposed for the test harness
-
 --------------------------------------------------------------------------------
 -- Insertion
 --------------------------------------------------------------------------------
@@ -362,12 +364,18 @@ local function insertText(text)
     hs.eventtap.keyStrokes(text)
     return ms(t0)
   end
-  local original = hs.pasteboard.getContents()
+  -- readAllData, not getContents: getContents() returns nil for any non-text
+  -- pasteboard, so restoring from it would silently destroy a copied image or
+  -- file list. readAllData/writeAllData round-trip every UTI.
+  local original = hs.pasteboard.readAllData()
   hs.pasteboard.setContents(text)
   after(CONFIG.pasteDelay, function()
     hs.eventtap.keyStroke({ "cmd" }, "v", 0)
     after(CONFIG.clipboardRestoreDelay, function()
-      if original ~= nil then hs.pasteboard.setContents(original) end
+      if original and next(original) then
+        hs.pasteboard.clearContents()
+        hs.pasteboard.writeAllData(original)
+      end
     end)
   end)
   return ms(t0)
@@ -578,7 +586,8 @@ local function runPipeline(ctx)
         return finish("", { reason = "no_speech", raw = rawText })
       end
 
-      if not ctx.dryRun then insertText(final); playSound("Tink") end
+      local insertMs = nil
+      if not ctx.dryRun then insertMs = insertText(final); playSound("Tink") end
 
       logEvent(ctx.dryRun and "dry_run" or "dictation", {
         app = ctx.app, bundle = ctx.bundle, raw_mode = raw_mode, engine = engine,
@@ -589,7 +598,9 @@ local function runPipeline(ctx)
         ffmpeg_exit_ms = ctx.exitMs,
         asr_ms = asrMs,
         post_ms = postMs,
-        total_ms = ms(ctx.releasedAt),   -- key-release → text inserted
+        insert_ms = insertMs,
+        -- key-release → clipboard set. The Cmd-V itself lands pasteDelay later.
+        total_ms = ms(ctx.releasedAt),
         chars = #final,
         raw = rawText,
         text = final,
@@ -615,11 +626,19 @@ local function finishRecording(discard, opts)
   if not task then state.mode = "idle"; setIcon("idle"); return end
 
   local pid = task:pid()
+  if pid then hs.execute("/bin/kill -INT " .. pid) end
+
+  -- A discard throws the WAV away, so there is nothing to wait for. Returning to
+  -- idle immediately matters: the first tap of a double-tap is a discard, and a
+  -- human's second tap lands ~100-150ms later — well inside the time ffmpeg takes
+  -- to exit. Waiting here made handleFlags drop that second tap, so
+  -- double-tap-to-latch silently did nothing.
+  if discard then
+    state.mode = "idle"; setIcon("idle")
+    return
+  end
+
   local function afterExit()
-    if discard then
-      state.mode = "idle"; setIcon("idle")
-      return
-    end
     runPipeline({
       app = wasApp, bundle = wasBundle, dict = dict,
       releasedAt = releasedAt, startedAt = startedAt, deviceReadyAt = deviceReadyAt,
@@ -629,7 +648,6 @@ local function finishRecording(discard, opts)
   end
 
   if pid then
-    hs.execute("/bin/kill -INT " .. pid)
     -- ffmpeg finalizes the WAV header on SIGINT; poll for the process to be gone.
     local waited = 0
     every(0.01, function()
@@ -711,6 +729,14 @@ end
 
 M._insertForTest = insertText
 M._stateMode = function() return state.mode end
+
+-- Clear the tap history so a test starts from a known state.
+function M._resetState()
+  state.mode = "idle"
+  state.lastTapAt, state.downAt = 0, 0
+  state.ignoreNextUp, state.latchArmed = false, false
+  setIcon("idle")
+end
 
 -- Drive the press/release state machine with a synthetic flagsChanged event, so
 -- the latch logic is testable without the Accessibility grant an eventtap needs.
@@ -802,10 +828,6 @@ function M.start()
   return M
 end
 
-function M.stop()
-  if tap then tap:stop(); tap = nil end
-  if menubar then menubar:delete(); menubar = nil end
-end
 
 M.start()
 

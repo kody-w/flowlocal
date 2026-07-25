@@ -164,6 +164,45 @@ got=$(run_pipeline "$FIX/silence.wav" TextEdit)
 got=$(run_pipeline "$FIX/tap.wav" TextEdit)
 [ -z "$got" ] && ok "0.1s tap → nothing inserted (below minRecordSeconds)" || bad "tap produced: \"$got\""
 
+head_ "6. Clipboard save/restore"
+# The Cmd-V keystroke itself needs Accessibility, but the save/restore half —
+# which is what can destroy your clipboard — is fully testable here.
+"$HSCLI" -c 'hs.pasteboard.setContents("SENTINEL")' >/dev/null 2>&1
+"$HSCLI" -c 'require("flowlocal")._insertForTest("dictated text")' >/dev/null 2>&1
+mid=$("$HSCLI" -c 'print(hs.pasteboard.getContents())' 2>/dev/null | tail -1)
+[ "$mid" = "dictated text" ] && ok "transcript is on the clipboard for the paste" || bad "clipboard held \"$mid\""
+sleep 1
+back=$("$HSCLI" -c 'print(hs.pasteboard.getContents())' 2>/dev/null | tail -1)
+[ "$back" = "SENTINEL" ] && ok "text clipboard restored to SENTINEL" || bad "clipboard left as \"$back\""
+# a non-text clipboard must survive too: getContents() is nil for an image, so a
+# getContents-based restore would silently destroy it
+"$HSCLI" -c 'hs.pasteboard.clearContents(); hs.pasteboard.writeObjects(hs.image.imageFromName("NSApplicationIcon")); require("flowlocal")._insertForTest("dictated text")' >/dev/null 2>&1
+sleep 1
+img=$("$HSCLI" -c 'print(hs.pasteboard.readImage() and "intact" or "lost")' 2>/dev/null | tail -1)
+[ "$img" = "intact" ] && ok "image clipboard survived a dictation" || bad "image clipboard was $img"
+"$HSCLI" -c 'hs.pasteboard.setContents("")' >/dev/null 2>&1
+
+head_ "Hotkey state machine (tap / double-tap latch / long hold)"
+# Paced inside Hammerspoon against the real tapMaxSeconds and doubleTapSeconds —
+# shell-driven calls are far too coarse to land inside a 0.35s window.
+pkill -f 'avfoundation -i :default' >/dev/null 2>&1; sleep 1
+"$HSCLI" -c "dofile('$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/statemachine.lua')" >/dev/null 2>&1
+n=0
+until grep -q DONE "$WORK/statemachine.txt" 2>/dev/null || [ "$n" -gt 60 ]; do sleep 2; n=$((n+1)); done
+if grep -q DONE "$WORK/statemachine.txt" 2>/dev/null; then
+  while IFS= read -r line; do
+    case "$line" in
+      *PASS) ok "${line%%  *}" ;;
+      *FAIL*) bad "$line" ;;
+      ERROR*) bad "$line" ;;
+    esac
+  done < "$WORK/statemachine.txt"
+  left=$(pgrep -f 'avfoundation -i :default' | wc -l | tr -d ' ')
+  [ "$left" = "0" ] && ok "no orphaned recorder left behind" || bad "$left orphaned ffmpeg still holding the mic"
+else
+  bad "state machine test did not finish"
+fi
+
 head_ "8. Polish hook  (routes through claude -p — slow)"
 if command -v claude >/dev/null || [ -x "$HOME/.local/bin/claude" ]; then
   got=$(run_pipeline "$FIX/polish.wav" TextEdit 180)
@@ -201,7 +240,7 @@ Still needs YOU (real mic + real keys):
   1. Latency in TextEdit  — hold Right Cmd, say "hello world this is a test", release.
   2. Cross-app           — repeat in Notes, Safari's address bar, VS Code.
   3. Filler stripping    — say "um so this is uh basically the plan".
-  6. Clipboard restore   — copy "SENTINEL", dictate anything, then Cmd-V.
+  6. Clipboard restore   — the Cmd-V half only (save/restore is covered above).
   Timings land in ~/.flowlocal/logs/flowlocal.log (total_ms = release → inserted).
 LIVE
 [ "$fail" -eq 0 ]

@@ -168,7 +168,7 @@ All of it is the `CONFIG` table at the top of `flowlocal.lua`.
 | `insertMethod` | `"paste"` | `"paste"` (clipboard + ⌘V) or `"type"` (simulated keystrokes) |
 | `pasteDelay` | `0.05` | Seconds between setting the clipboard and ⌘V |
 | `clipboardRestoreDelay` | `0.25` | Seconds after ⌘V before your clipboard is put back |
-| `fillers` | `um, uh, uhm, erm, hmm, mhm, you know, i mean, like, like` | Removed on word boundaries |
+| `fillers` | `um, uh, uhm, erm, hmm, mhm, you know` | Removed on word boundaries |
 | `rawApps` | Terminal, iTerm2, Ghostty, VS Code, Cursor, Alacritty, kitty, WezTerm, Warp | Apps that get unformatted text (name **or** bundle ID) |
 | `polishTrigger` | `"polish"` | Spoken word that routes through the hook |
 | `polishTimeout` | `60` | Seconds before a hung hook gives up and inserts the un-polished text |
@@ -196,11 +196,13 @@ for long text, but it never touches the clipboard.
 
 ```json
 {"event":"dictation","app":"TextEdit","raw_mode":false,"engine":"server",
- "mic_open_ms":312,"ffmpeg_exit_ms":41,"asr_ms":154,"post_ms":0,"total_ms":183,
+ "mic_open_ms":312,"ffmpeg_exit_ms":41,"asr_ms":154,"post_ms":0,"insert_ms":1,
+ "total_ms":183,
  "raw":" Hello world, this is a test.\n","text":"Hello world, this is a test."}
 ```
 
-`total_ms` is the number that matters: key-release → text inserted. `mic_open_ms`
+`total_ms` is the number that matters: key-release → clipboard set (the ⌘V
+itself lands `pasteDelay` later). `mic_open_ms`
 is how long avfoundation took to open the device on key-*down* — that window is
 before the start cue, which is why the cue plays only once capture is truly live.
 
@@ -214,19 +216,25 @@ Server output is in `whisper-server.log`.
 ./tools/dryrun.sh
 ```
 
-19 assertions, no microphone and no keyboard needed: speech is synthesised with
+41 assertions, no microphone and no keyboard needed: speech is synthesised with
 `say`, then pushed through the real pipeline via the Hammerspoon `hs` CLI. It
-covers latency, filler stripping, app-aware raw mode, the dictionary, both
-silence guards, the polish hook, and the whisper-cli fallback with the server
-deliberately killed. It uses its own fixture dictionary, so your personal one
-does not affect the results.
+covers latency, filler stripping, app-aware raw mode, the dictionary (including
+terms with digits and terms ending in punctuation), both silence guards, the
+clipboard save/restore for text *and* images, the polish hook, and the
+whisper-cli fallback with the server deliberately killed. It uses its own fixture
+dictionary, so your personal one does not affect the results.
 
-Four things only a human can check — the hotkey and ⌘V need real keys:
+The hotkey state machine — tap, double-tap latch, long hold — is covered too, by
+`tools/statemachine.lua`, which the suite runs. It drives the press/release logic
+with synthetic events paced against the real `tapMaxSeconds` and
+`doubleTapSeconds` windows, so the latch is tested without needing Accessibility.
 
-1. Hold Right ⌘ in TextEdit, say *"hello world this is a test"*, release.
-2. Repeat in Notes, Safari's address bar, and VS Code.
-3. Say *"um so this is uh basically the plan"* → `So this is basically the plan.`
-4. Copy `SENTINEL`, dictate anything, then ⌘V — you should get `SENTINEL` back.
+What is left for a human, because only the real eventtap and a real ⌘V can
+exercise it:
+
+1. Hold Right ⌘ in TextEdit, say *"hello world this is a test"*, release —
+   confirms the real hotkey and that ⌘V lands in the app.
+2. Repeat in Notes, Safari's address bar, and VS Code (Electron).
 
 ---
 
@@ -269,7 +277,7 @@ pkill -f whisper-server
 ## Layout
 
 ```
-~/.hammerspoon/init.lua        → require("flowlocal")
+~/.hammerspoon/init.lua        → require("flowlocal") + the ipc listener
 ~/.hammerspoon/flowlocal.lua   → symlink to this repo's flowlocal.lua
 ~/.flowlocal/
   models/                      ggml-small.en.bin, ggml-base.en.bin
@@ -277,6 +285,11 @@ pkill -f whisper-server
   hooks/polish.sh              the LLM polish hook
   logs/                        flowlocal.log, whisper-server.log
 ```
+
+`init.lua` also starts Hammerspoon's `hs.ipc` listener, which is what provides
+the `hs` shell CLI the test suite drives. It is local-only. Delete those lines if
+you would rather not have it — dictation is unaffected; only the tests stop
+working.
 
 Built with [whisper.cpp](https://github.com/ggerganov/whisper.cpp),
 [Hammerspoon](https://www.hammerspoon.org), and ffmpeg. MIT.
