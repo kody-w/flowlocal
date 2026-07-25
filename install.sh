@@ -1,9 +1,9 @@
 #!/bin/bash
-# FlowLocal installer — idempotent. Safe to re-run.
+# RAPP Voice installer — idempotent. Safe to re-run.
 set -uo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-FL="$HOME/.flowlocal"
+FL="$HOME/.rappvoice"
 HS="$HOME/.hammerspoon"
 MODELS="$FL/models"
 BASE_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
@@ -79,14 +79,14 @@ chmod +x "$FL/hooks/polish.sh"
 
 # --------------------------------------------------------------- hammerspoon
 say "Hammerspoon config"
-ln -sfn "$SRC/flowlocal.lua" "$HS/flowlocal.lua"
-ok "$HS/flowlocal.lua -> $SRC/flowlocal.lua"
+ln -sfn "$SRC/rappvoice.lua" "$HS/rappvoice.lua"
+ok "$HS/rappvoice.lua -> $SRC/rappvoice.lua"
 
 if [ -e "$HS/init.lua" ] && ! [ -L "$HS/init.lua" ]; then
-  if grep -q 'require("flowlocal")' "$HS/init.lua"; then
-    ok "init.lua already requires flowlocal"
+  if grep -q 'require("rappvoice")' "$HS/init.lua"; then
+    ok "init.lua already requires rappvoice"
   else
-    cp "$HS/init.lua" "$HS/init.lua.pre-flowlocal.$(date +%s)"
+    cp "$HS/init.lua" "$HS/init.lua.pre-rappvoice.$(date +%s)"
     cat "$SRC/init.lua" >> "$HS/init.lua"
     ok "appended to your existing init.lua (backup written)"
   fi
@@ -126,7 +126,7 @@ fi
 cat <<'PERMS'
 
 ============================================================
- FlowLocal installed. TWO PERMISSIONS ARE REQUIRED.
+ RAPP Voice installed. TWO PERMISSIONS ARE REQUIRED.
 ============================================================
 
 1) ACCESSIBILITY  (needed for the key tap and the Cmd-V injection)
@@ -143,13 +143,13 @@ cat <<'PERMS'
 
 3) RELOAD after granting either permission:
    Hammerspoon menubar icon > Reload Config
-   (or the FlowLocal ◌ menu > "Reload Hammerspoon config")
+   (or the RAPP Voice ◌ menu > "Reload Hammerspoon config")
 
 ------------------------------------------------------------
  USE:  hold RIGHT COMMAND, speak, release.
        Double-tap RIGHT COMMAND for hands-free; tap to finish.
  Menubar: ◌ idle   🔴 recording   ⋯ transcribing
- Logs:   ~/.flowlocal/logs/flowlocal.log   (one JSON line per dictation)
+ Logs:   ~/.rappvoice/logs/rappvoice.log   (one JSON line per dictation)
  Docs:   README.md in this folder
 ------------------------------------------------------------
 PERMS

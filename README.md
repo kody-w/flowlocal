@@ -1,4 +1,4 @@
-# FlowLocal
+# RAPP Voice
 
 Hold a key anywhere on macOS, speak, release — cleaned-up text appears at your
 cursor in whatever app is in front.
@@ -21,14 +21,14 @@ key up   ──► whisper-server  (model stays resident in RAM)
 ## Install
 
 ```bash
-git clone https://github.com/kody-w/flowlocal.git
-cd flowlocal
+git clone https://github.com/kody-w/rapp-voice.git
+cd rapp-voice
 ./install.sh
 ```
 
 The installer is idempotent — safe to re-run. It installs `ffmpeg`,
 `whisper-cpp` and Hammerspoon via Homebrew, downloads the two speech models
-(~630 MB total) into `~/.flowlocal/models/`, links the Lua files into
+(~630 MB total) into `~/.rappvoice/models/`, links the Lua files into
 `~/.hammerspoon/`, and starts the speech server.
 
 It will not overwrite a `dictionary.txt` or a `hooks/polish.sh` you have edited.
@@ -39,7 +39,7 @@ It will not overwrite a `dictionary.txt` or a `hooks/polish.sh` you have edited.
 
 > System Settings → Privacy & Security → **Accessibility** → enable **Hammerspoon**
 
-Without this the hotkey does nothing at all. FlowLocal shows an alert on load if
+Without this the hotkey does nothing at all. RAPP Voice shows an alert on load if
 it is missing.
 
 **2. Microphone** — for recording.
@@ -51,7 +51,7 @@ the prompt never appears, add it by hand:
 > System Settings → Privacy & Security → **Microphone** → enable **Hammerspoon**
 
 **3. Reload after granting either permission** — Hammerspoon menubar → *Reload
-Config*, or the FlowLocal `◌` menu → *Reload Hammerspoon config*.
+Config*, or the RAPP Voice `◌` menu → *Reload Hammerspoon config*.
 
 ---
 
@@ -74,7 +74,7 @@ Say **"polish"** as the first word to route the rest through an LLM cleanup pass
 
 ## What the post-processing does
 
-Whisper gives you a raw sentence; FlowLocal makes it look like you typed it.
+Whisper gives you a raw sentence; RAPP Voice makes it look like you typed it.
 
 - **Trims** whitespace and drops whisper's non-speech annotations (`[BLANK_AUDIO]`,
   `*laughs*`).
@@ -99,36 +99,46 @@ Whisper gives you a raw sentence; FlowLocal makes it look like you typed it.
 
 ## Personal dictionary
 
-`~/.flowlocal/dictionary.txt`, one entry per line. Edits apply on your next
+`~/.rappvoice/dictionary.txt`, one entry per line. Edits apply on your next
 dictation — no reload.
 
 ```
-# A bare term biases the recogniser AND forces this exact spelling/casing.
 Kubernetes
 PostgreSQL
 OpenRappter
-
-# A rewrite, for invented words that are HOMOPHONES of real ones.
-Open Raptor => OpenRappter
 ```
 
-Two mechanisms, because one is not enough:
+Every term is fed to the recogniser as a decoding bias, and then enforced in the
+output so the spelling and casing come out exactly as written here.
 
-1. **Bias.** Every term is passed to whisper as its decoding prompt, which pulls
-   ambiguous audio toward your vocabulary.
-2. **Rewrite.** Biasing cannot fix a true homophone — "Rappter" and "Raptor" are
-   acoustically identical, so no recogniser can choose between them from sound
-   alone. `heard => meant` lines are a literal, case-insensitive replacement.
+The bias is **weighted** — each term is emitted twice in the prompt. That is not
+cosmetic. For an invented word that sounds like a real one, a plain comma-joined
+list is not enough:
 
-Keep the left side of a rewrite multi-word or clearly invented where you can: a
-bare `Raptor => Rappter` would also corrupt genuine uses of the real word.
+```
+"OpenRappter, RappterStore, ..."               ->  "OpenRaptor"    wrong
+"OpenRappter. OpenRappter. RappterStore. ..."  ->  "OpenRappter"   right
+```
+
+Weighting costs nothing and does not bleed your terms into unrelated speech
+(checked against fixtures that contain none of them, including silence).
+
+If a term is a true homophone of a real word and biasing still cannot land it,
+add an explicit rewrite instead:
+
+```
+heard text => Term
+```
+
+Keep the left side multi-word or clearly invented — a bare one-word rewrite would
+also corrupt genuine uses of the real word.
 
 ---
 
 ## Optional LLM polish
 
 Say `"polish"` first and the rest of the transcript is piped through
-`~/.flowlocal/hooks/polish.sh` before insertion. The shipped hook uses the
+`~/.rappvoice/hooks/polish.sh` before insertion. The shipped hook uses the
 `claude` CLI:
 
 ```
@@ -153,7 +163,7 @@ than losing the dictation.
 
 ## Config reference
 
-All of it is the `CONFIG` table at the top of `flowlocal.lua`.
+All of it is the `CONFIG` table at the top of `rappvoice.lua`.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -180,7 +190,7 @@ All of it is the `CONFIG` table at the top of `flowlocal.lua`.
 
 **Change the hotkey** — `CONFIG.hotkey = "fn"`, then reload.
 
-**Swap the model** — download another `ggml-*.bin` into `~/.flowlocal/models/`,
+**Swap the model** — download another `ggml-*.bin` into `~/.rappvoice/models/`,
 point `CONFIG.model` at it, then use the menubar's *Restart speech server*.
 `small.en` is the accuracy/latency sweet spot; `medium.en` is noticeably better
 on hard audio and roughly 3× slower; `base.en` is fastest.
@@ -192,7 +202,7 @@ for long text, but it never touches the clipboard.
 
 ## Logs and profiling
 
-`~/.flowlocal/logs/flowlocal.log` — one JSON object per event.
+`~/.rappvoice/logs/rappvoice.log` — one JSON object per event.
 
 ```json
 {"event":"dictation","app":"TextEdit","raw_mode":false,"engine":"server",
@@ -255,7 +265,7 @@ was under `minRecordSeconds`, or whisper heard no words. `raw` in the log entry
 shows what it did hear.
 
 **Latency got worse.** Check the server is still resident:
-`pgrep -f whisper-server`. If it died, FlowLocal falls back to `whisper-cli`,
+`pgrep -f whisper-server`. If it died, RAPP Voice falls back to `whisper-cli`,
 which reloads the model on every call — seconds instead of milliseconds. The
 menubar menu shows server status and can restart it.
 
@@ -267,9 +277,9 @@ read the pasteboard lazily.
 ## Uninstall
 
 ```bash
-rm -rf ~/.flowlocal ~/.hammerspoon/flowlocal.lua
+rm -rf ~/.rappvoice ~/.hammerspoon/rappvoice.lua
 pkill -f whisper-server
-# and remove the require("flowlocal") line from ~/.hammerspoon/init.lua
+# and remove the require("rappvoice") line from ~/.hammerspoon/init.lua
 ```
 
 ---
@@ -277,13 +287,13 @@ pkill -f whisper-server
 ## Layout
 
 ```
-~/.hammerspoon/init.lua        → require("flowlocal") + the ipc listener
-~/.hammerspoon/flowlocal.lua   → symlink to this repo's flowlocal.lua
-~/.flowlocal/
+~/.hammerspoon/init.lua        → require("rappvoice") + the ipc listener
+~/.hammerspoon/rappvoice.lua   → symlink to this repo's rappvoice.lua
+~/.rappvoice/
   models/                      ggml-small.en.bin, ggml-base.en.bin
   dictionary.txt               your vocabulary
   hooks/polish.sh              the LLM polish hook
-  logs/                        flowlocal.log, whisper-server.log
+  logs/                        rappvoice.log, whisper-server.log
 ```
 
 `init.lua` also starts Hammerspoon's `hs.ipc` listener, which is what provides

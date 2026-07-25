@@ -6,9 +6,9 @@
 -- hs.execute() from inside an ipc-driven call trips "hs.ipc: already recursing".
 -- The caller checks for orphaned ffmpeg processes after DONE appears.
 --
--- Run: hs -c 'dofile("<this file>")' and wait for DONE in /tmp/flowlocal/statemachine.txt
-local fl = require("flowlocal")
-local F = "/tmp/flowlocal/statemachine.txt"
+-- Run: hs -c 'dofile("<this file>")' and wait for DONE in /tmp/rappvoice/statemachine.txt
+local fl = require("rappvoice")
+local F = "/tmp/rappvoice/statemachine.txt"
 os.remove(F)
 
 local function log(s)

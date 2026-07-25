@@ -1,5 +1,5 @@
 #!/bin/bash
-# FlowLocal polish hook.
+# RAPP Voice polish hook.
 #   $1 = path to a file containing the dictated text (trigger word already stripped)
 #   stdout = the cleaned text, nothing else
 #

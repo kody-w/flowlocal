@@ -1,14 +1,9 @@
-# FlowLocal personal dictionary. Edits take effect on your next dictation —
+# RAPP Voice personal dictionary. Edits take effect on your next dictation —
 # no reload needed.
 #
-# Two kinds of line:
-#
-#   Term                  Biases the recogniser toward this word, and forces
-#                         this exact spelling/casing in the output.
-#
-#   heard text => Term    A literal rewrite. Use this for invented words that
-#                         are HOMOPHONES of real ones — biasing alone cannot
-#                         fix those, because they sound identical.
+# One term per line. Each is fed to the recogniser as a decoding bias (weighted,
+# so invented words survive) and forces this exact spelling and casing in the
+# output.
 
 OpenRappter
 RappterStore
@@ -16,9 +11,7 @@ Rappter
 Kody Wildflower
 Claude Code
 
-# Homophone rewrites. Keep the left side multi-word where you can: a bare
-# "Raptor => Rappter" would also corrupt genuine uses of the real word.
-Open Raptor => OpenRappter
-OpenRaptor => OpenRappter
-Raptor Store => RappterStore
-RaptorStore => RappterStore
+# If a term is a true homophone of a real word and biasing still cannot land it,
+# you can add an explicit rewrite:  heard text => Term
+# Keep the left side multi-word or clearly invented — a bare one-word rewrite will
+# also corrupt genuine uses of the real word.

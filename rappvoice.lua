@@ -1,4 +1,4 @@
--- flowlocal.lua — FlowLocal: 100% local hold-to-talk dictation for macOS
+-- rappvoice.lua — RAPP Voice: 100% local hold-to-talk dictation for macOS
 -- Hold the hotkey anywhere, speak, release → cleaned text appears at your cursor.
 -- Pipeline: ffmpeg (avfoundation) → resident whisper-server (whisper.cpp) → post-process → paste.
 
@@ -17,8 +17,8 @@ local CONFIG = {
   -- Speech engine
   whisperServer = "/opt/homebrew/bin/whisper-server",
   whisperCli    = "/opt/homebrew/bin/whisper-cli",       -- batch fallback
-  model         = HOME .. "/.flowlocal/models/ggml-small.en.bin",
-  fallbackModel = HOME .. "/.flowlocal/models/ggml-base.en.bin",
+  model         = HOME .. "/.rappvoice/models/ggml-small.en.bin",
+  fallbackModel = HOME .. "/.rappvoice/models/ggml-base.en.bin",
   port          = 8765,
   language      = "en",
 
@@ -52,7 +52,7 @@ local CONFIG = {
   -- Optional LLM polish (opt-in, adds seconds). Say this word first to route the
   -- rest of the transcript through the hook script.
   polishTrigger = "polish",
-  polishHook    = HOME .. "/.flowlocal/hooks/polish.sh",
+  polishHook    = HOME .. "/.rappvoice/hooks/polish.sh",
   polishTimeout = 60,
 
   -- Double-tap the hotkey to latch into hands-free recording; tap again to finish.
@@ -60,9 +60,9 @@ local CONFIG = {
   tapMaxSeconds    = 0.25,   -- a hold shorter than this is a "tap", never a dictation
 
   sounds = true,
-  dictionary = HOME .. "/.flowlocal/dictionary.txt",
-  logDir     = HOME .. "/.flowlocal/logs",
-  workDir    = "/tmp/flowlocal",
+  dictionary = HOME .. "/.rappvoice/dictionary.txt",
+  logDir     = HOME .. "/.rappvoice/logs",
+  workDir    = "/tmp/rappvoice",
 }
 
 M.CONFIG = CONFIG
@@ -87,7 +87,7 @@ local KEYS = {
 
 local WAV        = CONFIG.workDir .. "/rec.wav"
 local POLISH_IN  = CONFIG.workDir .. "/polish_in.txt"
-local LOG        = CONFIG.logDir .. "/flowlocal.log"
+local LOG        = CONFIG.logDir .. "/rappvoice.log"
 local SERVER_LOG = CONFIG.logDir .. "/whisper-server.log"
 
 os.execute(string.format("/bin/mkdir -p %q %q", CONFIG.workDir, CONFIG.logDir))
@@ -131,7 +131,7 @@ local function logEvent(kind, tbl)
   if not ok then line = string.format('{"event":%q,"encode_error":true}', kind) end
   local f = io.open(LOG, "a")
   if f then f:write(line, "\n"); f:close() end
-  print("[flowlocal] " .. line)
+  print("[rappvoice] " .. line)
 end
 
 --------------------------------------------------------------------------------
@@ -186,7 +186,7 @@ function M.startServer()
       modelPath = CONFIG.fallbackModel
     else
       logEvent("server_no_model", { model = CONFIG.model })
-      hs.alert.show("FlowLocal: no whisper model found — run ~/.flowlocal/install.sh")
+      hs.alert.show("RAPP Voice: no whisper model found — run ~/.rappvoice/install.sh")
       return
     end
   end
@@ -206,7 +206,7 @@ function M.restartServer()
   M.stopServer()
   after(0.6, function()
     M.startServer()
-    hs.alert.show("FlowLocal: speech server restarting")
+    hs.alert.show("RAPP Voice: speech server restarting")
   end)
 end
 
@@ -238,13 +238,22 @@ local function readDictionary()
   return dict
 end
 
+-- Each term is emitted TWICE as its own sentence. Measured on ggml-small.en with
+-- an invented word that is a homophone of a real one:
+--   "OpenRappter, RappterStore, ..."              -> "OpenRaptor"   (wrong)
+--   "OpenRappter. OpenRappter. RappterStore. ..." -> "OpenRappter"  (right)
+-- Weighting this way costs nothing and does not bleed terms into unrelated audio
+-- (verified against speech and silence fixtures that contain none of them).
 local function dictionaryPrompt(dict)
-  local seen, uniq = {}, {}
+  local seen, parts = {}, {}
   for _, t in ipairs(dict.terms or {}) do
-    if not seen[t] then seen[t] = true; table.insert(uniq, t) end
+    if not seen[t] then
+      seen[t] = true
+      parts[#parts + 1] = t .. ". " .. t .. "."
+    end
   end
-  if #uniq == 0 then return nil end
-  return table.concat(uniq, ", ") .. "."
+  if #parts == 0 then return nil end
+  return table.concat(parts, " ")
 end
 
 --------------------------------------------------------------------------------
@@ -712,7 +721,7 @@ local function handleFlags(e)
         state.latchArmed = false
         after(0.05, function()
           startRecording(true)
-          hs.alert.show("FlowLocal: hands-free — tap to finish", 1)
+          hs.alert.show("RAPP Voice: hands-free — tap to finish", 1)
         end)
       else
         finishRecording(true)
@@ -811,13 +820,13 @@ function M.start()
     menubar = hs.menubar.new()
     if menubar then
       menubar:setTitle(ICONS.idle)
-      menubar:setTooltip("FlowLocal — hold " .. CONFIG.hotkey .. " to dictate")
+      menubar:setTooltip("RAPP Voice — hold " .. CONFIG.hotkey .. " to dictate")
       menubar:setMenu(buildMenu)
     end
   end
 
   if not hs.accessibilityState() then
-    hs.alert.show("FlowLocal needs Accessibility: System Settings → Privacy & Security → Accessibility → Hammerspoon", 8)
+    hs.alert.show("RAPP Voice needs Accessibility: System Settings → Privacy & Security → Accessibility → Hammerspoon", 8)
     logEvent("accessibility_missing", {})
   end
 

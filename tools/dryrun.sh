@@ -1,7 +1,7 @@
 #!/bin/bash
-# FlowLocal dry-run acceptance tests.
+# RAPP Voice dry-run acceptance tests.
 # Everything here runs WITHOUT touching your microphone or your keyboard:
-# speech is synthesised with `say`, then pushed through the real FlowLocal
+# speech is synthesised with `say`, then pushed through the real RAPP Voice
 # pipeline (whisper-server → filler stripping → app-aware formatting) via the
 # Hammerspoon `hs` CLI. Tests that need real keys/mic are listed at the end.
 #
@@ -10,8 +10,8 @@
 # is inserted or kept), so do not run it in the middle of a copy-paste.
 set -uo pipefail
 
-FL="$HOME/.flowlocal"
-WORK=/tmp/flowlocal
+FL="$HOME/.rappvoice"
+WORK=/tmp/rappvoice
 FIX="$WORK/fixtures"
 HSCLI="${HSCLI:-/opt/homebrew/bin/hs}"
 PORT=8765
@@ -51,21 +51,17 @@ echo "  silence.wav"
 echo "  tap.wav"
 
 # ---------------------------------------------------------- hermetic dictionary
-# Point FlowLocal at a fixture dictionary for the duration of the run, so the
+# Point RAPP Voice at a fixture dictionary for the duration of the run, so the
 # assertions do not depend on whatever the user has edited into their own.
 cat > "$FIX/dictionary.txt" <<'DICT'
 OpenRappter
 RappterStore
 Rappter
 Claude Code
-Open Raptor => OpenRappter
-OpenRaptor => OpenRappter
-Raptor Store => RappterStore
-RaptorStore => RappterStore
 DICT
-ORIG_DICT=$("$HSCLI" -c "print(require('flowlocal').CONFIG.dictionary)" 2>/dev/null | tail -1)
-"$HSCLI" -c "require('flowlocal').CONFIG.dictionary = '$FIX/dictionary.txt'" >/dev/null 2>&1
-restore_dict() { "$HSCLI" -c "require('flowlocal').CONFIG.dictionary = '$ORIG_DICT'" >/dev/null 2>&1; }
+ORIG_DICT=$("$HSCLI" -c "print(require('rappvoice').CONFIG.dictionary)" 2>/dev/null | tail -1)
+"$HSCLI" -c "require('rappvoice').CONFIG.dictionary = '$FIX/dictionary.txt'" >/dev/null 2>&1
+restore_dict() { "$HSCLI" -c "require('rappvoice').CONFIG.dictionary = '$ORIG_DICT'" >/dev/null 2>&1; }
 trap restore_dict EXIT
 
 # ------------------------------------------------------------------ helpers
@@ -73,7 +69,7 @@ trap restore_dict EXIT
 run_pipeline() { # run_pipeline <wav> <frontmost-app-name> [timeout-s]
   local wav="$1" app="$2" to="${3:-25}" out="$WORK/dryrun_result.txt"
   rm -f "$out" "$out.meta"
-  "$HSCLI" -c "require('flowlocal').dryRun('$wav', '$app')" >/dev/null 2>&1
+  "$HSCLI" -c "require('rappvoice').dryRun('$wav', '$app')" >/dev/null 2>&1
   local waited=0
   while [ ! -f "$out" ]; do
     sleep 0.1; waited=$((waited+1))
@@ -85,7 +81,7 @@ run_pipeline() { # run_pipeline <wav> <frontmost-app-name> [timeout-s]
 meta() { cat "$WORK/dryrun_result.txt.meta" 2>/dev/null || echo '{}'; }
 
 process_only() { # process_only <text> <app>   — post-processing path only
-  "$HSCLI" -c "print(require('flowlocal')._processFor([==[$1]==], [==[$2]==]))" 2>/dev/null
+  "$HSCLI" -c "print(require('rappvoice')._processFor([==[$1]==], [==[$2]==]))" 2>/dev/null
 }
 
 # ------------------------------------------------------------------ tests
@@ -151,14 +147,14 @@ C++
 F#
 Node.js
 DICT
-"$HSCLI" -c "require('flowlocal').CONFIG.dictionary = '$FIX/edgedict.txt'" >/dev/null 2>&1
+"$HSCLI" -c "require('rappvoice').CONFIG.dictionary = '$FIX/edgedict.txt'" >/dev/null 2>&1
 p=$(process_only "i use gpt-4 and llama3.2 daily" TextEdit)
 [ "$p" = "I use GPT-4 and llama3.2 daily." ] && ok "digit terms: \"$p\"" || bad "digit terms gave \"$p\""
 p=$(process_only "i write c++ and node.js and f# every day" TextEdit)
 [ "$p" = "I write C++ and Node.js and F# every day." ] && ok "terms ending in punctuation: \"$p\"" || bad "punctuation terms gave \"$p\""
 p=$(process_only "abc++ is not the language" Terminal)
 [ "$p" = "abc++ is not the language" ] && ok "no match inside a larger token: \"$p\"" || bad "false positive: \"$p\""
-"$HSCLI" -c "require('flowlocal').CONFIG.dictionary = '$FIX/dictionary.txt'" >/dev/null 2>&1
+"$HSCLI" -c "require('rappvoice').CONFIG.dictionary = '$FIX/dictionary.txt'" >/dev/null 2>&1
 p=$(process_only "humming is not a filler and neither is uhoh" TextEdit)
 [ "$p" = "Humming is not a filler and neither is uhoh." ] && ok "fillers respect word boundaries: \"$p\"" || bad "filler over-matched: \"$p\""
 
@@ -173,7 +169,7 @@ head_ "6. Clipboard save/restore"
 # destroy your clipboard and is what we assert. Firing a real Cmd-V here would
 # paste "dictated text" into whatever app happens to be frontmost.
 "$HSCLI" -c 'hs.pasteboard.setContents("SENTINEL")' >/dev/null 2>&1
-"$HSCLI" -c 'require("flowlocal")._insertForTest("dictated text", true)' >/dev/null 2>&1
+"$HSCLI" -c 'require("rappvoice")._insertForTest("dictated text", true)' >/dev/null 2>&1
 mid=$("$HSCLI" -c 'print(hs.pasteboard.getContents())' 2>/dev/null | tail -1)
 [ "$mid" = "dictated text" ] && ok "transcript is on the clipboard for the paste" || bad "clipboard held \"$mid\""
 sleep 1
@@ -181,7 +177,7 @@ back=$("$HSCLI" -c 'print(hs.pasteboard.getContents())' 2>/dev/null | tail -1)
 [ "$back" = "SENTINEL" ] && ok "text clipboard restored to SENTINEL" || bad "clipboard left as \"$back\""
 # a non-text clipboard must survive too: getContents() is nil for an image, so a
 # getContents-based restore would silently destroy it
-"$HSCLI" -c 'hs.pasteboard.clearContents(); hs.pasteboard.writeObjects(hs.image.imageFromName("NSApplicationIcon")); require("flowlocal")._insertForTest("dictated text", true)' >/dev/null 2>&1
+"$HSCLI" -c 'hs.pasteboard.clearContents(); hs.pasteboard.writeObjects(hs.image.imageFromName("NSApplicationIcon")); require("rappvoice")._insertForTest("dictated text", true)' >/dev/null 2>&1
 sleep 1
 img=$("$HSCLI" -c 'print(hs.pasteboard.readImage() and "intact" or "lost")' 2>/dev/null | tail -1)
 [ "$img" = "intact" ] && ok "image clipboard survived a dictation" || bad "image clipboard was $img"
@@ -229,7 +225,7 @@ eng=$(meta | python3 -c 'import json,sys;print(json.load(sys.stdin).get("engine"
 echo "     engine=$eng  text=\"$got\""
 [ "$eng" = "cli" ] && ok "fell back to whisper-cli when the server was down" || bad "engine was $eng"
 sleep 1
-"$HSCLI" -c "require('flowlocal').startServer()" >/dev/null 2>&1
+"$HSCLI" -c "require('rappvoice').startServer()" >/dev/null 2>&1
 for _ in $(seq 1 60); do
   sleep 0.5
   [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' http://127.0.0.1:$PORT/)" != "000" ] && break
@@ -246,6 +242,6 @@ Still needs YOU (real mic + real keys):
   2. Cross-app           — repeat in Notes, Safari's address bar, VS Code.
   3. Filler stripping    — say "um so this is uh basically the plan".
   6. Clipboard restore   — the Cmd-V half only (save/restore is covered above).
-  Timings land in ~/.flowlocal/logs/flowlocal.log (total_ms = release → inserted).
+  Timings land in ~/.rappvoice/logs/rappvoice.log (total_ms = release → inserted).
 LIVE
 [ "$fail" -eq 0 ]
