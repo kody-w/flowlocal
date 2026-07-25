@@ -358,10 +358,13 @@ end
 -- Insertion
 --------------------------------------------------------------------------------
 
-local function insertText(text)
+-- skipKeystroke is for tests only: it exercises the clipboard save/restore without
+-- firing a real Cmd-V, which would otherwise paste into whatever app happens to be
+-- frontmost when the suite runs.
+local function insertText(text, skipKeystroke)
   local t0 = now()
   if CONFIG.insertMethod == "type" then
-    hs.eventtap.keyStrokes(text)
+    if not skipKeystroke then hs.eventtap.keyStrokes(text) end
     return ms(t0)
   end
   -- readAllData, not getContents: getContents() returns nil for any non-text
@@ -370,7 +373,7 @@ local function insertText(text)
   local original = hs.pasteboard.readAllData()
   hs.pasteboard.setContents(text)
   after(CONFIG.pasteDelay, function()
-    hs.eventtap.keyStroke({ "cmd" }, "v", 0)
+    if not skipKeystroke then hs.eventtap.keyStroke({ "cmd" }, "v", 0) end
     after(CONFIG.clipboardRestoreDelay, function()
       if original and next(original) then
         hs.pasteboard.clearContents()

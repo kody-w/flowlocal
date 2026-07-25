@@ -4,6 +4,10 @@
 # speech is synthesised with `say`, then pushed through the real FlowLocal
 # pipeline (whisper-server → filler stripping → app-aware formatting) via the
 # Hammerspoon `hs` CLI. Tests that need real keys/mic are listed at the end.
+#
+# It never injects keystrokes, so it cannot type into whatever you have open. It
+# does briefly take over the clipboard and record a few short mic clips (nothing
+# is inserted or kept), so do not run it in the middle of a copy-paste.
 set -uo pipefail
 
 FL="$HOME/.flowlocal"
@@ -165,10 +169,11 @@ got=$(run_pipeline "$FIX/tap.wav" TextEdit)
 [ -z "$got" ] && ok "0.1s tap → nothing inserted (below minRecordSeconds)" || bad "tap produced: \"$got\""
 
 head_ "6. Clipboard save/restore"
-# The Cmd-V keystroke itself needs Accessibility, but the save/restore half —
-# which is what can destroy your clipboard — is fully testable here.
+# Deliberately passes skipKeystroke=true: the save/restore half is what can
+# destroy your clipboard and is what we assert. Firing a real Cmd-V here would
+# paste "dictated text" into whatever app happens to be frontmost.
 "$HSCLI" -c 'hs.pasteboard.setContents("SENTINEL")' >/dev/null 2>&1
-"$HSCLI" -c 'require("flowlocal")._insertForTest("dictated text")' >/dev/null 2>&1
+"$HSCLI" -c 'require("flowlocal")._insertForTest("dictated text", true)' >/dev/null 2>&1
 mid=$("$HSCLI" -c 'print(hs.pasteboard.getContents())' 2>/dev/null | tail -1)
 [ "$mid" = "dictated text" ] && ok "transcript is on the clipboard for the paste" || bad "clipboard held \"$mid\""
 sleep 1
@@ -176,7 +181,7 @@ back=$("$HSCLI" -c 'print(hs.pasteboard.getContents())' 2>/dev/null | tail -1)
 [ "$back" = "SENTINEL" ] && ok "text clipboard restored to SENTINEL" || bad "clipboard left as \"$back\""
 # a non-text clipboard must survive too: getContents() is nil for an image, so a
 # getContents-based restore would silently destroy it
-"$HSCLI" -c 'hs.pasteboard.clearContents(); hs.pasteboard.writeObjects(hs.image.imageFromName("NSApplicationIcon")); require("flowlocal")._insertForTest("dictated text")' >/dev/null 2>&1
+"$HSCLI" -c 'hs.pasteboard.clearContents(); hs.pasteboard.writeObjects(hs.image.imageFromName("NSApplicationIcon")); require("flowlocal")._insertForTest("dictated text", true)' >/dev/null 2>&1
 sleep 1
 img=$("$HSCLI" -c 'print(hs.pasteboard.readImage() and "intact" or "lost")' 2>/dev/null | tail -1)
 [ "$img" = "intact" ] && ok "image clipboard survived a dictation" || bad "image clipboard was $img"
