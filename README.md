@@ -168,9 +168,10 @@ All of it is the `CONFIG` table at the top of `flowlocal.lua`.
 | `insertMethod` | `"paste"` | `"paste"` (clipboard + ⌘V) or `"type"` (simulated keystrokes) |
 | `pasteDelay` | `0.05` | Seconds between setting the clipboard and ⌘V |
 | `clipboardRestoreDelay` | `0.25` | Seconds after ⌘V before your clipboard is put back |
-| `fillers` | `um, uh, uhm, erm, hmm, mhm, you know, i mean` | Removed on word boundaries |
+| `fillers` | `um, uh, uhm, erm, hmm, mhm, you know, i mean, like, like` | Removed on word boundaries |
 | `rawApps` | Terminal, iTerm2, Ghostty, VS Code, Cursor, Alacritty, kitty, WezTerm, Warp | Apps that get unformatted text (name **or** bundle ID) |
 | `polishTrigger` | `"polish"` | Spoken word that routes through the hook |
+| `polishTimeout` | `60` | Seconds before a hung hook gives up and inserts the un-polished text |
 | `doubleTapSeconds` | `0.35` | Max gap for a double-tap to latch |
 | `tapMaxSeconds` | `0.25` | A hold shorter than this is a tap, not a dictation |
 | `sounds` | `true` | Cue when the mic opens, and when text lands |

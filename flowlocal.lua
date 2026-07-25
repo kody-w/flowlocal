@@ -255,11 +255,26 @@ local function ciPattern(word)
       out[#out + 1] = "[" .. ch:lower() .. ch:upper() .. "]"
     elseif ch == " " then
       out[#out + 1] = "%s+"
+    elseif ch:match("%d") then
+      -- Digits must stay bare. "%4" in a Lua pattern is a back-reference to
+      -- capture 4, not a literal 4, so escaping it throws "invalid capture
+      -- index" on any term like GPT-4 or llama3.2.
+      out[#out + 1] = ch
     else
-      out[#out + 1] = "%" .. ch   -- escape everything non-alpha
+      out[#out + 1] = "%" .. ch   -- escape magic punctuation
     end
   end
   return table.concat(out)
+end
+
+-- Lua has no \b, so word boundaries use frontier patterns. A frontier only
+-- matches at a word/non-word transition, so it must be omitted on an edge that
+-- is already non-word — otherwise terms like "C++" or "F#" never match.
+local function boundedCi(term)
+  local pat = ciPattern(term)
+  if term:match("^%w") then pat = "%f[%w]" .. pat end
+  if term:match("%w$") then pat = pat .. "%f[%W]" end
+  return pat
 end
 
 local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
@@ -285,7 +300,7 @@ local function postProcess(raw, raw_mode, dict)
 
   -- fillers
   for _, w in ipairs(CONFIG.fillers) do
-    s = s:gsub("%f[%w]" .. ciPattern(w) .. "%f[%W]", "")
+    s = s:gsub(boundedCi(w), "")
   end
 
   -- tidy the wreckage the filler removal leaves behind
@@ -303,7 +318,7 @@ local function postProcess(raw, raw_mode, dict)
   -- explicit homophone rewrites, most specific first
   table.sort(dictSubs, function(a, b) return #a.from > #b.from end)
   for _, sub in ipairs(dictSubs) do
-    s = s:gsub("%f[%w]" .. ciPattern(sub.from) .. "%f[%W]", function() return sub.to end)
+    s = s:gsub(boundedCi(sub.from), function() return sub.to end)
   end
 
   -- Raw mode must UNDO whisper's formatting, not merely decline to add to it:
@@ -321,7 +336,7 @@ local function postProcess(raw, raw_mode, dict)
 
   -- personal dictionary: force canonical spelling/casing
   for _, term in ipairs(dictTerms) do
-    s = s:gsub("%f[%w]" .. ciPattern(term) .. "%f[%W]", function() return term end)
+    s = s:gsub(boundedCi(term), function() return term end)
   end
 
   if not raw_mode then
@@ -544,7 +559,15 @@ local function runPipeline(ctx)
     maybePolish(rawText, function(text, polished)
       local post0 = now()
       local raw_mode = isRawApp(ctx.app, ctx.bundle)
-      local final = postProcess(text, raw_mode, ctx.dict)
+      -- Post-processing builds Lua patterns out of user-supplied dictionary
+      -- entries. If one of them throws, the callback chain dies with state.mode
+      -- still "working" and the hotkey stops responding until a reload, so a
+      -- bad entry must cost one dictation, not the whole session.
+      local ok, final = pcall(postProcess, text, raw_mode, ctx.dict)
+      if not ok then
+        logEvent("postprocess_error", { err = tostring(final), dry_run = ctx.dryRun })
+        final = trim(text or "")
+      end
       local postMs = ms(post0)
 
       if final == "" then
@@ -687,6 +710,20 @@ end
 --------------------------------------------------------------------------------
 
 M._insertForTest = insertText
+M._stateMode = function() return state.mode end
+
+-- Drive the press/release state machine with a synthetic flagsChanged event, so
+-- the latch logic is testable without the Accessibility grant an eventtap needs.
+function M._fakeKey(isDown)
+  local key = KEYS[CONFIG.hotkey]
+  handleFlags({
+    getKeyCode = function() return key.keyCode end,
+    getRawEventData = function()
+      return { CGEventData = { flags = isDown and key.mask or 0 } }
+    end,
+  })
+  return state.mode
+end
 
 -- Post-process a transcript exactly as it would be for a given frontmost app.
 function M._processFor(text, appName)

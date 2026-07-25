@@ -139,6 +139,25 @@ p=$(process_only "i am shipping openrappter and rappterstore today" TextEdit)
 echo "     case fixup: \"$p\""
 case "$p" in *OpenRappter*RappterStore*) ok "dictionary case normalisation" ;; *) bad "case fixup gave \"$p\"" ;; esac
 
+head_ "5b. Dictionary edge cases (Lua patterns from user-supplied terms)"
+cat > "$FIX/edgedict.txt" <<'DICT'
+GPT-4
+llama3.2
+C++
+F#
+Node.js
+DICT
+"$HSCLI" -c "require('flowlocal').CONFIG.dictionary = '$FIX/edgedict.txt'" >/dev/null 2>&1
+p=$(process_only "i use gpt-4 and llama3.2 daily" TextEdit)
+[ "$p" = "I use GPT-4 and llama3.2 daily." ] && ok "digit terms: \"$p\"" || bad "digit terms gave \"$p\""
+p=$(process_only "i write c++ and node.js and f# every day" TextEdit)
+[ "$p" = "I write C++ and Node.js and F# every day." ] && ok "terms ending in punctuation: \"$p\"" || bad "punctuation terms gave \"$p\""
+p=$(process_only "abc++ is not the language" Terminal)
+[ "$p" = "abc++ is not the language" ] && ok "no match inside a larger token: \"$p\"" || bad "false positive: \"$p\""
+"$HSCLI" -c "require('flowlocal').CONFIG.dictionary = '$FIX/dictionary.txt'" >/dev/null 2>&1
+p=$(process_only "humming is not a filler and neither is uhoh" TextEdit)
+[ "$p" = "Humming is not a filler and neither is uhoh." ] && ok "fillers respect word boundaries: \"$p\"" || bad "filler over-matched: \"$p\""
+
 head_ "7. Silence guard"
 got=$(run_pipeline "$FIX/silence.wav" TextEdit)
 [ -z "$got" ] && ok "2s of silence → nothing inserted" || bad "silence produced: \"$got\""
