@@ -428,16 +428,35 @@ local function maybePolish(text, cb)
 
   setIcon("working")
   local t0 = now()
-  hs.task.new("/bin/sh", function(code, out, err)
+  -- The hook shells out to an LLM. If it never returns, state.mode would stay
+  -- "working" forever and the hotkey would stop responding, so the callback is
+  -- fired exactly once — by whichever of task-exit or timeout happens first.
+  local done, task = false, nil
+  local function settle(text, polished, logKind, extra)
+    if done then return end
+    done = true
+    extra = extra or {}
+    extra.polish_ms = ms(t0)
+    logEvent(logKind, extra)
+    cb(text, polished)
+  end
+
+  task = hs.task.new("/bin/sh", function(code, out, err)
     local polished = trim(out or "")
     if code == 0 and polished ~= "" then
-      logEvent("polish_ok", { polish_ms = ms(t0) })
-      cb(polished, true)
+      settle(polished, true, "polish_ok")
     else
-      logEvent("polish_failed", { code = code, err = (err or ""):sub(1, 400), polish_ms = ms(t0) })
-      cb(rest, false)   -- degrade to the unpolished text rather than lose the dictation
+      -- degrade to the unpolished text rather than lose the dictation
+      settle(rest, false, "polish_failed", { code = code, err = (err or ""):sub(1, 400) })
     end
-  end, { "-c", string.format("%q %q", CONFIG.polishHook, POLISH_IN) }):start()
+  end, { "-c", string.format("%q %q", CONFIG.polishHook, POLISH_IN) })
+  task:start()
+
+  after(CONFIG.polishTimeout, function()
+    if done then return end
+    if task then task:terminate() end
+    settle(rest, false, "polish_timeout", { timeout_s = CONFIG.polishTimeout })
+  end)
 end
 
 --------------------------------------------------------------------------------
