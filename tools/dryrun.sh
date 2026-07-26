@@ -97,8 +97,11 @@ wall=$(python3 -c "print(round(($t1-$t0)*1000))")
 asr=$(meta | python3 -c 'import json,sys;print(json.load(sys.stdin).get("asr_ms","?"))')
 echo "     text: \"$got\""
 echo "     asr_ms=$asr   dry-run wall (incl. hs CLI spawn)=${wall}ms"
+# Same collation trap as below: [A-Z] matches lowercase under en_US.UTF-8, so
+# this PASSed even for uncapitalised output. Fixed here too — I corrected the
+# negative assertion and left this one, which is how a green suite hid it.
 case "$got" in
-  [A-Z]*[.!?]) ok "punctuated + sentence-cased" ;;
+  [[:upper:]]*[.!?]) ok "punctuated + sentence-cased" ;;
   *) bad "not punctuated/cased: \"$got\"" ;;
 esac
 if [ "$asr" != "?" ] && [ "$asr" -le 1500 ]; then ok "ASR ${asr}ms ≤ 1500ms budget"; else bad "ASR ${asr}ms over budget"; fi

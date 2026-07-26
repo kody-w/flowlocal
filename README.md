@@ -3,9 +3,11 @@
 Hold a key anywhere on macOS, speak, release — cleaned-up text appears at your
 cursor in whatever app is in front.
 
-100% local. No cloud, no account, no API key, no telemetry. Your voice never
-leaves the machine: speech recognition runs on your own GPU via
-[whisper.cpp](https://github.com/ggerganov/whisper.cpp).
+Speech recognition runs on your own GPU via
+[whisper.cpp](https://github.com/ggerganov/whisper.cpp) — no cloud, no account, no
+API key, and your audio is transcribed locally then discarded. The dictation path
+never touches the network. (Driving the hatched twin over `/chat` is a separate
+thing and does use the host brainstem's LLM — see rapp-tools for that distinction.)
 
 Measured on an Apple M4: **142–350 ms** from key-release to text ready.
 
