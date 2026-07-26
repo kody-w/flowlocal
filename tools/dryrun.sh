@@ -10,10 +10,18 @@
 # is inserted or kept), so do not run it in the middle of a copy-paste.
 set -uo pipefail
 
+
+# Homebrew prefix differs by architecture (/opt/homebrew on Apple Silicon,
+# /usr/local on Intel). Resolve rather than hardcode, or this file is a no-op
+# on half the Macs it targets.
+brewbin() { for p in "/opt/homebrew/bin/$1" "/usr/local/bin/$1"; do
+    [ -x "$p" ] && { echo "$p"; return; }; done
+  command -v "$1" 2>/dev/null || echo "/opt/homebrew/bin/$1"; }
+
 FL="$HOME/.rappvoice"
 WORK=/tmp/rappvoice
 FIX="$WORK/fixtures"
-HSCLI="${HSCLI:-/opt/homebrew/bin/hs}"
+HSCLI="${HSCLI:-$(brewbin hs)}"
 PORT=8765
 mkdir -p "$FIX"
 
@@ -31,7 +39,7 @@ mkwav() { # mkwav <name> <spoken text> [say-rate]
   local name="$1" text="$2" rate="${3:-175}"
   [ -f "$FIX/$name.wav" ] && return 0
   say -r "$rate" -o "$FIX/$name.aiff" "$text" || return 1
-  /opt/homebrew/bin/ffmpeg -hide_banner -loglevel error -i "$FIX/$name.aiff" \
+  $(brewbin ffmpeg) -hide_banner -loglevel error -i "$FIX/$name.aiff" \
     -ar 16000 -ac 1 -c:a pcm_s16le -y "$FIX/$name.wav" || return 1
 }
 
@@ -42,11 +50,11 @@ mkwav gitcmd  "git status"                                     && echo "  gitcmd
 mkwav dict    "I am shipping OpenRappter today"                && echo "  dict.wav"
 mkwav polish  "polish um I think we should uh maybe possibly consider shipping it"  && echo "  polish.wav"
 # 2 seconds of pure digital silence
-[ -f "$FIX/silence.wav" ] || /opt/homebrew/bin/ffmpeg -hide_banner -loglevel error \
+[ -f "$FIX/silence.wav" ] || $(brewbin ffmpeg) -hide_banner -loglevel error \
   -f lavfi -i anullsrc=r=16000:cl=mono -t 2 -c:a pcm_s16le -y "$FIX/silence.wav"
 echo "  silence.wav"
 # a 0.1s clip, i.e. what a key tap produces
-[ -f "$FIX/tap.wav" ] || /opt/homebrew/bin/ffmpeg -hide_banner -loglevel error \
+[ -f "$FIX/tap.wav" ] || $(brewbin ffmpeg) -hide_banner -loglevel error \
   -f lavfi -i anullsrc=r=16000:cl=mono -t 0.1 -c:a pcm_s16le -y "$FIX/tap.wav"
 echo "  tap.wav"
 

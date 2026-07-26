@@ -7,8 +7,11 @@
 -- Only the symlink install is conditional, so it stops rewriting Homebrew paths
 -- (and warning about the man page) on every reload.
 require("hs.ipc")
-if not hs.fs.attributes("/opt/homebrew/bin/hs") then
-  hs.ipc.cliInstall("/opt/homebrew")
+-- Intel Homebrew is /usr/local; install the CLI wherever brew actually is.
+local brewPrefix = hs.fs.attributes("/opt/homebrew/bin") and "/opt/homebrew"
+                   or "/usr/local"
+if not hs.fs.attributes(brewPrefix .. "/bin/hs") then
+  hs.ipc.cliInstall(brewPrefix)
 end
 
 require("rappvoice")

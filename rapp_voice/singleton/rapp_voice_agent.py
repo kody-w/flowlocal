@@ -44,7 +44,8 @@ ASR_PORT = int(os.environ.get("ASR_PORT", "8765"))
 
 
 def _hs():
-    for c in (os.environ.get("HS_CLI"), shutil.which("hs"), "/opt/homebrew/bin/hs"):
+    for c in (os.environ.get("HS_CLI"), shutil.which("hs"),
+              "/opt/homebrew/bin/hs", "/usr/local/bin/hs"):
         if c and os.access(c, os.X_OK):
             return c
     return None
@@ -149,7 +150,8 @@ class RappVoiceAgent(BasicAgent):
             f"  dictionary         {len(terms)} term(s), {len(subs)} rewrite(s) — {DICT}",
             "",
             "Audio is captured to a temp file, transcribed locally and discarded. "
-            "Nothing is uploaded.",
+            "The opt-in polish hook is the one path off this machine: its default "
+            "implementation calls `claude -p`.",
         ]
         return "\n".join(lines)
 

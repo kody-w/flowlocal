@@ -1,4 +1,7 @@
--- rappvoice.lua — RAPP Voice: 100% local hold-to-talk dictation for macOS
+-- rappvoice.lua — RAPP Voice: hold-to-talk dictation for macOS.
+-- Recognition is on-device (whisper.cpp on 127.0.0.1). The OPTIONAL polish
+-- hook, reached by saying the trigger word first, shells out to `claude -p`
+-- and therefore sends that one transcript to Anthropic.
 -- Hold the hotkey anywhere, speak, release → cleaned text appears at your cursor.
 -- Pipeline: ffmpeg (avfoundation) → resident whisper-server (whisper.cpp) → post-process → paste.
 
@@ -10,20 +13,32 @@ local M = {}
 
 local HOME = os.getenv("HOME")
 
+-- Homebrew is at /opt/homebrew on Apple Silicon and /usr/local on Intel. These
+-- were hardcoded to the former, which made every path below simply absent on an
+-- Intel Mac. Resolve once, preferring the Apple Silicon location so behaviour
+-- there is unchanged.
+local function brew(name)
+  for _, p in ipairs({ "/opt/homebrew/bin/" .. name, "/usr/local/bin/" .. name,
+                       "/usr/bin/" .. name }) do
+    if hs.fs.attributes(p) then return p end
+  end
+  return "/opt/homebrew/bin/" .. name  -- report the canonical path in errors
+end
+
 local CONFIG = {
   -- Hotkey: which modifier to hold. Choose "rightCmd", "leftCmd", "rightOption", "fn".
   hotkey = "rightCmd",
 
   -- Speech engine
-  whisperServer = "/opt/homebrew/bin/whisper-server",
-  whisperCli    = "/opt/homebrew/bin/whisper-cli",       -- batch fallback
+  whisperServer = brew("whisper-server"),
+  whisperCli    = brew("whisper-cli"),       -- batch fallback
   model         = HOME .. "/.rappvoice/models/ggml-small.en.bin",
   fallbackModel = HOME .. "/.rappvoice/models/ggml-base.en.bin",
   port          = 8765,
   language      = "en",
 
   -- Audio capture
-  ffmpeg            = "/opt/homebrew/bin/ffmpeg",
+  ffmpeg            = brew("ffmpeg"),
   audioDevice       = ":default",   -- the leading colon is required (no video, default audio)
   maxRecordSeconds  = 600,
   minRecordSeconds  = 0.35,         -- shorter than this → treated as silence, nothing inserted

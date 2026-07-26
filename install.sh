@@ -2,6 +2,14 @@
 # RAPP Voice installer — idempotent. Safe to re-run.
 set -uo pipefail
 
+
+# Homebrew prefix differs by architecture (/opt/homebrew on Apple Silicon,
+# /usr/local on Intel). Resolve rather than hardcode, or this file is a no-op
+# on half the Macs it targets.
+brewbin() { for p in "/opt/homebrew/bin/$1" "/usr/local/bin/$1"; do
+    [ -x "$p" ] && { echo "$p"; return; }; done
+  command -v "$1" 2>/dev/null || echo "/opt/homebrew/bin/$1"; }
+
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 FL="$HOME/.rappvoice"
 HS="$HOME/.hammerspoon"
@@ -33,7 +41,7 @@ else
   brew install --cask hammerspoon || die "brew install --cask hammerspoon failed"
 fi
 
-for b in /opt/homebrew/bin/whisper-server /opt/homebrew/bin/whisper-cli /opt/homebrew/bin/ffmpeg; do
+for b in $(brewbin whisper-server) $(brewbin whisper-cli) $(brewbin ffmpeg); do
   [ -x "$b" ] || die "missing $b"
 done
 
@@ -104,7 +112,7 @@ PORT=8765
 if pgrep -f "whisper-server .*--port $PORT" >/dev/null; then
   ok "whisper-server already running on $PORT"
 else
-  nohup /opt/homebrew/bin/whisper-server -m "$MODELS/ggml-small.en.bin" \
+  nohup $(brewbin whisper-server) -m "$MODELS/ggml-small.en.bin" \
     --host 127.0.0.1 --port "$PORT" -l en -t 4 >> "$FL/logs/whisper-server.log" 2>&1 &
   # probe with GET / — a POST to /inference without a file never gets a reply
   for _ in $(seq 1 60); do

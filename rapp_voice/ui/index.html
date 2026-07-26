@@ -17,7 +17,7 @@ pre{margin:0;white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 ui-monos
 </style></head><body>
 <header><h1>RAPP Voice</h1><div class="sub">Hold a key anywhere on macOS, speak, release, and cleaned-up text appears at your cursor.</div></header>
 <main>
-<div class="banner"><b>Everything here runs on this machine.</b> Audio is captured to a temp file, transcribed by whisper.cpp on localhost, and discarded. Nothing is uploaded.</div>
+<div class="banner"><b>Everything here runs on this machine.</b> Audio is captured to a temp file, transcribed by whisper.cpp on localhost, and discarded. The one exception is the <b>opt-in polish hook</b> (say &ldquo;polish&rdquo; first): the default hook pipes that transcript to <code>claude -p</code>. Leave it unused, or repoint it at a local model, and nothing leaves the machine.</div>
 <div class="row" id="acts"></div>
 <div class="card"><h2>Output</h2><pre id="out">Pick an action.</pre></div>
 </main>
