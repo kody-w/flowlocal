@@ -67,6 +67,14 @@ RappterStore
 Rappter
 Claude Code
 DICT
+# Reload before testing. Hammerspoon caches the loaded module, so editing
+# rappvoice.lua and running the suite tested the PREVIOUS version — two ASR
+# assertions failed against code that no longer existed on disk, which is the
+# most confusing possible failure: the source is right and the test is red.
+"$HSCLI" -c "hs.reload()" >/dev/null 2>&1
+sleep 4
+"$HSCLI" -c "return 1" >/dev/null 2>&1 || { echo "Hammerspoon did not come back after reload" >&2; exit 1; }
+
 ORIG_DICT=$("$HSCLI" -c "print(require('rappvoice').CONFIG.dictionary)" 2>/dev/null | tail -1)
 "$HSCLI" -c "require('rappvoice').CONFIG.dictionary = '$FIX/dictionary.txt'" >/dev/null 2>&1
 restore_dict() { "$HSCLI" -c "require('rappvoice').CONFIG.dictionary = '$ORIG_DICT'" >/dev/null 2>&1; }
