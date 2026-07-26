@@ -1,0 +1,31 @@
+{
+  "schema": "rapp-application/1.0",
+  "id": "rapp_voice",
+  "name": "RAPP Voice",
+  "version": "1.0.0",
+  "publisher": "@kody-w",
+  "manifest_name": "@kody-w/rapp-voice-singleton",
+  "runtime": "twin",
+  "summary": "Hold a key anywhere on macOS, speak, release, and cleaned-up text appears at your cursor. Speech recognition runs on-device via whisper.cpp; your voice never leaves the machine. Filler stripping, app-aware formatting and a weighted personal dictionary.",
+  "tagline": "Hold a key anywhere on macOS, speak, release, and cleaned-up text appears at your cursor.",
+  "category": "productivity",
+  "tags": [
+    "rapplication",
+    "dictation",
+    "speech",
+    "whisper",
+    "local-first",
+    "privacy",
+    "has-ui"
+  ],
+  "agent": "singleton/rapp_voice_agent.py",
+  "ui": "ui/index.html",
+  "license": "MIT",
+  "homepage": "https://github.com/kody-w/rapp-voice",
+  "quality_tier": "community",
+  "twin": {
+    "soul": "twin/soul.md",
+    "agents": "twin/agents",
+    "port": 7091
+  }
+}

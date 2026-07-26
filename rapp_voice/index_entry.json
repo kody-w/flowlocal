@@ -1,0 +1,38 @@
+{
+  "id": "rapp_voice",
+  "name": "RAPP Voice",
+  "version": "1.0.0",
+  "summary": "Hold a key anywhere on macOS, speak, release, and cleaned-up text appears at your cursor. Speech recognition runs on-device via whisper.cpp; your voice never leaves the machine. Filler stripping, app-aware formatting and a weighted personal dictionary.",
+  "tagline": "Hold a key anywhere on macOS, speak, release, and cleaned-up text appears at your cursor.",
+  "category": "productivity",
+  "tags": [
+    "rapplication",
+    "dictation",
+    "speech",
+    "whisper",
+    "local-first",
+    "privacy",
+    "has-ui"
+  ],
+  "manifest_name": "@kody-w/rapp-voice-singleton",
+  "license": "MIT",
+  "publisher": "@kody-w",
+  "quality_tier": "community",
+  "singleton_filename": "rapp_voice_agent.py",
+  "singleton_url": "https://raw.githubusercontent.com/kody-w/rapp-voice/main/rapp_voice/singleton/rapp_voice_agent.py",
+  "ui_url": "https://raw.githubusercontent.com/kody-w/rapp-voice/main/rapp_voice/ui/index.html",
+  "ui_filename": "index.html",
+  "egg_url": "https://raw.githubusercontent.com/kody-w/rapp-voice/main/rapp_voice/eggs/rapp_voice.egg",
+  "egg_note": "Ships with no state. The egg is the hatch cartridge only \u2014 no captures, recordings, transcripts, vocabulary or personal data.",
+  "source": {
+    "type": "federation",
+    "repo": "kody-w/rapp-voice",
+    "ref": "main",
+    "path": "rapp_voice"
+  },
+  "example_call": {
+    "args": {
+      "action": "doctor"
+    }
+  }
+}
