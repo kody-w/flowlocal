@@ -27,5 +27,6 @@
     "soul": "twin/soul.md",
     "agents": "twin/agents",
     "port": 7091
-  }
+  },
+  "egg_note": "The copy of this manifest inside the .egg describes a hatch cartridge: it carries twin/ and state/ only. `agent` and `ui` are bundle-relative paths that live in the source repo, not in the egg \u2014 the twin loads twin/agents/, not singleton/."
 }

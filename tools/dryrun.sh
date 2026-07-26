@@ -122,8 +122,11 @@ p=$(process_only "Um, so this is, uh, basically the plan." TextEdit)
 head_ "4. App-aware raw mode (Terminal)"
 got=$(run_pipeline "$FIX/gitcmd.wav" Terminal)
 echo "     text: \"$got\""
+# [A-Z] is NOT safe here: under en_US.UTF-8 collation a bash case pattern of
+# [A-Z]* also matches lowercase, so this reported "capitalised" for "get status".
+# [[:upper:]] is collation-safe.
 case "$got" in
-  [A-Z]*) bad "capitalised in Terminal: \"$got\"" ;;
+  [[:upper:]]*) bad "capitalised in Terminal: \"$got\"" ;;
   *.) bad "trailing period in Terminal: \"$got\"" ;;
   *) ok "lowercase, no trailing period: \"$got\"" ;;
 esac
@@ -218,6 +221,17 @@ else
 fi
 
 head_ "Fallback engine (whisper-cli, server stopped)"
+# If the speech server is a launchd agent with KeepAlive, killing it just makes
+# launchd restart it instantly and the fallback never engages — the test then
+# reports "engine was server" and looks like a product bug. Park the agent for
+# the duration and put it back afterwards.
+SVC=com.rapp.whisper-server
+PARKED=0
+if launchctl list 2>/dev/null | grep -q "$SVC"; then
+  launchctl bootout "gui/$(id -u)/$SVC" >/dev/null 2>&1 && PARKED=1
+  info "parked the $SVC launchd agent so the fallback can actually engage"
+  sleep 1
+fi
 pkill -f "whisper-server .*--port $PORT" >/dev/null 2>&1
 sleep 0.5
 got=$(run_pipeline "$FIX/hello.wav" TextEdit 60)
@@ -232,6 +246,13 @@ for _ in $(seq 1 60); do
 done
 [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' http://127.0.0.1:$PORT/)" != "000" ] \
   && ok "server auto-restarted after the failure" || bad "server did not come back"
+if [ "$PARKED" = "1" ]; then
+  pkill -f "whisper-server .*--port $PORT" >/dev/null 2>&1; sleep 1
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/$SVC.plist" >/dev/null 2>&1
+  n=0; until curl -s -o /dev/null -m 2 http://127.0.0.1:$PORT/ 2>/dev/null || [ $n -gt 30 ]; do sleep 1; n=$((n+1)); done
+  curl -s -o /dev/null -m 3 http://127.0.0.1:$PORT/ && ok "launchd agent restored and serving" \
+    || bad "left the $SVC agent down — restore it manually"
+fi
 
 # ------------------------------------------------------------------ summary
 printf '\n\033[1m%d passed, %d failed\033[0m\n' "$pass" "$fail"
