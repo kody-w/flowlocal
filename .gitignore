@@ -1,3 +1,10 @@
 *.aiff
 *.bin
 .DS_Store
+
+# Bytecode defeats the fragment trick the test fixtures rely on: Python
+# constant-folds "gh" + "p_..." at COMPILE time, so a .pyc contains the
+# joined credential-shaped literal even though no source file does, and
+# the publishing gate reads it and says NO-GO — correctly.
+__pycache__/
+*.pyc
